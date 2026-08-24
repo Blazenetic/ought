@@ -98,6 +98,8 @@ class Settings(Mapping[str, object]):
         values: Initial settings. Nested mappings become nested ``Settings``
             views. Built-in mutable containers are frozen on ingestion: lists
             become tuples, sets become frozensets, and bytearrays become bytes.
+            Reference cycles in supported containers are rejected. Other leaf
+            objects are retained by reference.
         sensitive: Dotted paths whose resolved values should be wrapped in
             :class:`Secret`. Missing paths are allowed so optional secrets can
             be supplied by a later context override.
@@ -143,7 +145,7 @@ class Settings(Mapping[str, object]):
 
         Environment names after ``env_prefix`` are lower-cased and split on a
         double underscore.  For example, ``MYAPP_DB__PORT=5432`` becomes
-        ``{"db": {"port": 5432}}``. Values use TOML scalar syntax when valid
+        ``{"db": {"port": 5432}}``. Values use TOML value syntax when valid
         and otherwise remain strings.
 
         Args:
@@ -160,6 +162,8 @@ class Settings(Mapping[str, object]):
         Raises:
             SettingsSourceError: If a source is malformed or cannot be read.
             InvalidSettingError: If a sensitive path points to a section.
+            TypeError: If a source container or environment prefix has the
+                wrong type.
         """
         merged: _Tree = {}
 
@@ -257,11 +261,12 @@ class Settings(Mapping[str, object]):
         return wrapped
 
     def as_dict(self, *, reveal_secrets: bool = False) -> dict[str, object]:
-        """Return a detached dictionary of the current view.
+        """Return a structurally detached dictionary of the current view.
 
         Secrets remain wrapped by default. ``reveal_secrets=True`` is an
         explicit escape hatch intended for passing configuration to code that
-        needs the raw values.
+        needs the raw values. Arbitrary leaf objects remain shared, matching
+        the ingestion contract.
         """
         exported = _export(self._mapping(), reveal_secrets=reveal_secrets)
         if not isinstance(exported, dict):
@@ -342,11 +347,24 @@ def _load_toml(path: Path) -> _Tree:
 
 
 def _load_environment(environment: Mapping[str, str], prefix: str) -> _Tree:
+    if not isinstance(environment, Mapping):
+        raise TypeError("env must be a mapping of strings to strings")
+    if not isinstance(prefix, str):
+        raise TypeError("env_prefix must be a string or None")
     if not prefix:
         raise ValueError("env_prefix must not be empty")
 
     result: _Tree = {}
-    names = sorted(name for name in environment if name.startswith(prefix))
+    names: list[str] = []
+    for name in environment:
+        if not isinstance(name, str):
+            raise SettingsSourceError(
+                f"environment contains non-string variable name {name!r}"
+            )
+        if name.startswith(prefix):
+            names.append(name)
+
+    names.sort()
     for name in names:
         raw_value = environment[name]
         if not isinstance(raw_value, str):
@@ -413,33 +431,82 @@ def _freeze_mapping(values: Mapping[str, object], *, source: str) -> _Tree:
     return frozen
 
 
-def _freeze(value: object, *, path: _Path, source: str) -> object:
-    if isinstance(value, Secret):
-        revealed = _freeze(value.reveal(), path=path, source=source)
-        if isinstance(revealed, dict):
-            raise InvalidSettingError(
-                f"sensitive setting {_format_path(path)!r} cannot be a section"
+def _freeze(
+    value: object,
+    *,
+    path: _Path,
+    source: str,
+    active_containers: set[int] | None = None,
+) -> object:
+    if active_containers is None:
+        active_containers = set()
+
+    container_id: int | None = None
+    if isinstance(value, (Secret, Mapping, list, tuple, set, frozenset)):
+        container_id = id(value)
+        if container_id in active_containers:
+            location = _format_path(path) if path else "<root>"
+            raise SettingsSourceError(
+                f"{source} contains a reference cycle at {location!r}"
             )
-        return Secret(revealed)
+        active_containers.add(container_id)
 
-    if isinstance(value, Mapping):
-        result: _Tree = {}
-        for key, item in value.items():
-            if not isinstance(key, str):
-                location = _format_path(path) if path else "<root>"
-                raise SettingsSourceError(
-                    f"{source} contains non-string key {key!r} under {location!r}"
+    try:
+        if isinstance(value, Secret):
+            revealed = _freeze(
+                value.reveal(),
+                path=path,
+                source=source,
+                active_containers=active_containers,
+            )
+            if isinstance(revealed, dict):
+                raise InvalidSettingError(
+                    f"sensitive setting {_format_path(path)!r} cannot be a section"
                 )
-            result[key] = _freeze(item, path=(*path, key), source=source)
-        return result
+            return Secret(revealed)
 
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze(item, path=path, source=source) for item in value)
-    if isinstance(value, (set, frozenset)):
-        return frozenset(_freeze(item, path=path, source=source) for item in value)
-    if isinstance(value, bytearray):
-        return bytes(value)
-    return value
+        if isinstance(value, Mapping):
+            result: _Tree = {}
+            for key, item in value.items():
+                if not isinstance(key, str):
+                    location = _format_path(path) if path else "<root>"
+                    raise SettingsSourceError(
+                        f"{source} contains non-string key {key!r} under {location!r}"
+                    )
+                result[key] = _freeze(
+                    item,
+                    path=(*path, key),
+                    source=source,
+                    active_containers=active_containers,
+                )
+            return result
+
+        if isinstance(value, (list, tuple)):
+            return tuple(
+                _freeze(
+                    item,
+                    path=path,
+                    source=source,
+                    active_containers=active_containers,
+                )
+                for item in value
+            )
+        if isinstance(value, (set, frozenset)):
+            return frozenset(
+                _freeze(
+                    item,
+                    path=path,
+                    source=source,
+                    active_containers=active_containers,
+                )
+                for item in value
+            )
+        if isinstance(value, bytearray):
+            return bytes(value)
+        return value
+    finally:
+        if container_id is not None:
+            active_containers.remove(container_id)
 
 
 def _merge(

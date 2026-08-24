@@ -46,8 +46,12 @@ class MultiMap(MutableMapping[_K, _V], Generic[_K, _V]):
 
     def add(self, key: _K, value: _V) -> None:
         """Append ``value`` for ``key`` without replacing existing values."""
+        values = self._values.get(key)
+        if values is None:
+            self._values[key] = [value]
+        else:
+            values.append(value)
         self._pairs.append((key, value))
-        self._values.setdefault(key, []).append(value)
 
     def getall(self, key: _K) -> tuple[_V, ...]:
         """Return all values for ``key`` in insertion order.
@@ -73,18 +77,27 @@ class MultiMap(MutableMapping[_K, _V], Generic[_K, _V]):
             self.add(key, value)
             return
 
-        first_position = next(
-            index
-            for index, (existing_key, _) in enumerate(self._pairs)
-            if existing_key == key
-        )
-        self._pairs = [pair for pair in self._pairs if pair[0] != key]
-        self._pairs.insert(first_position, (key, value))
+        try:
+            first_position = next(
+                index
+                for index, (existing_key, _) in enumerate(self._pairs)
+                if _keys_match(existing_key, key)
+            )
+        except StopIteration:
+            raise RuntimeError("MultiMap key index is inconsistent") from None
+
+        canonical_key = self._pairs[first_position][0]
+        pairs = [pair for pair in self._pairs if not _keys_match(pair[0], key)]
+        pairs.insert(first_position, (canonical_key, value))
         self._values[key] = [value]
+        self._pairs = pairs
 
     def __delitem__(self, key: _K) -> None:
+        # Validate lookup and build the replacement before mutating either index.
+        self._values[key]
+        pairs = [pair for pair in self._pairs if not _keys_match(pair[0], key)]
         del self._values[key]
-        self._pairs = [pair for pair in self._pairs if pair[0] != key]
+        self._pairs = pairs
 
     def __iter__(self) -> Iterator[_K]:
         return iter(self._values)
@@ -99,6 +112,11 @@ class MultiMap(MutableMapping[_K, _V], Generic[_K, _V]):
         if not isinstance(other, MultiMap):
             return NotImplemented
         return self._pairs == other._pairs
+
+
+def _keys_match(existing: object, candidate: object) -> bool:
+    """Use the identity-or-equality rule employed by Python dictionaries."""
+    return existing is candidate or existing == candidate
 
 
 __all__ = ["MultiMap"]

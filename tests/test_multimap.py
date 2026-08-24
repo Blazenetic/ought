@@ -44,6 +44,16 @@ def test_assignment_replaces_all_values_at_the_first_pair_position() -> None:
     assert list(values) == ["a", "b", "c", "new"]
 
 
+def test_assignment_preserves_the_original_object_for_an_equal_key() -> None:
+    values: MultiMap[int | bool, str] = MultiMap([(1, "first"), (1, "second")])
+
+    values[True] = "replacement"
+
+    stored_key, stored_value = next(values.pairs())
+    assert type(stored_key) is int
+    assert stored_value == "replacement"
+
+
 def test_deletion_removes_every_value_and_readding_moves_key_to_end() -> None:
     values = MultiMap([("a", 1), ("b", 2), ("a", 3)])
 
@@ -63,6 +73,29 @@ def test_missing_keys_follow_mapping_conventions() -> None:
         values.getall("missing")
     with pytest.raises(KeyError):
         del values["missing"]
+
+
+def test_unhashable_add_fails_without_leaving_an_unindexed_pair() -> None:
+    values: MultiMap[object, int] = MultiMap()
+
+    with pytest.raises(TypeError, match="unhashable"):
+        values.add([], 1)
+
+    assert list(values.pairs()) == []
+    assert len(values) == 0
+
+
+def test_non_reflexive_key_uses_dictionary_identity_semantics() -> None:
+    key = float("nan")
+    values = MultiMap([(key, 1), (key, 2)])
+
+    values[key] = 3
+    assert list(values.pairs()) == [(key, 3)]
+    assert values.getall(key) == (3,)
+
+    del values[key]
+    assert list(values.pairs()) == []
+    assert len(values) == 0
 
 
 def test_pairs_iterator_is_a_stable_snapshot() -> None:

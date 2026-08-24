@@ -73,6 +73,21 @@ def test_child_tasks_copy_the_context_present_when_started() -> None:
     assert asyncio.run(scenario()) == ("first", "second")
 
 
+def test_children_can_start_descendants_while_the_group_is_draining() -> None:
+    async def scenario() -> str:
+        async with nursery() as tasks:
+
+            async def parent() -> str:
+                await asyncio.sleep(0)
+                child = tasks.start_soon(asyncio.sleep, 0, result="descendant")
+                return await child
+
+            parent_task = tasks.start_soon(parent)
+        return parent_task.result()
+
+    assert asyncio.run(scenario()) == "descendant"
+
+
 def test_nursery_rejects_task_starts_after_exit_without_calling_function() -> None:
     called = False
 

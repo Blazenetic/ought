@@ -21,7 +21,9 @@ class Nursery:
 
     ``Nursery`` delegates lifetime, cancellation, and exception grouping to
     :class:`asyncio.TaskGroup`. Context variables are copied by asyncio when
-    each task is created, matching :func:`asyncio.create_task`.
+    each task is created, matching :func:`asyncio.create_task`. The scope stays
+    active while the task group drains, so a child may start descendants during
+    a normal exit just as it can with ``TaskGroup.create_task()``.
 
     Instances should be obtained from :func:`nursery`, not constructed by
     application code.
@@ -48,7 +50,7 @@ class Nursery:
             **kwargs: Keyword arguments forwarded to ``function``.
 
         Raises:
-            RuntimeError: If the nursery's context has already exited.
+            RuntimeError: If the nursery is not currently active.
         """
         if not self._active:
             raise RuntimeError("cannot start a task outside an active nursery")
@@ -82,13 +84,14 @@ async def nursery() -> AsyncIterator[Nursery]:
         >>> asyncio.run(main())
         [1, 2]
     """
-    async with asyncio.TaskGroup() as task_group:
-        scope = Nursery(task_group)
-        scope._open()
-        try:
+    task_group = asyncio.TaskGroup()
+    scope = Nursery(task_group)
+    try:
+        async with task_group:
+            scope._open()
             yield scope
-        finally:
-            scope._close()
+    finally:
+        scope._close()
 
 
 __all__ = ["Nursery", "nursery"]

@@ -73,7 +73,7 @@ def test_single_file_path_is_accepted(tmp_path: Path) -> None:
     assert settings.answer == 42
 
 
-def test_environment_values_use_toml_scalars_with_string_fallback() -> None:
+def test_environment_values_use_toml_values_with_string_fallback() -> None:
     settings = Settings.from_sources(
         env_prefix="APP_",
         env={
@@ -83,6 +83,7 @@ def test_environment_values_use_toml_scalars_with_string_fallback() -> None:
             "APP_DB__PORT": "5432",
             "APP_LABEL": "plain text",
             "APP_NAMES": '["Ada", "Grace"]',
+            "APP_OPTIONS": "{retries = 3, enabled = true}",
             "APP_QUOTED": '"explicit string"',
             "APP_RATIO": "1.25",
             "APP_UNTRUSTED": "1\nother = 2",
@@ -95,6 +96,7 @@ def test_environment_values_use_toml_scalars_with_string_fallback() -> None:
         "db": {"host": "localhost", "port": 5432},
         "label": "plain text",
         "names": ("Ada", "Grace"),
+        "options": {"retries": 3, "enabled": True},
         "quoted": "explicit string",
         "ratio": 1.25,
         "untrusted": "1\nother = 2",
@@ -217,6 +219,19 @@ def test_sensitive_paths_cover_optional_and_overridden_values() -> None:
     assert "optional" not in settings
 
 
+def test_sensitive_path_requires_its_parent_to_remain_a_section() -> None:
+    settings = Settings(
+        {"db": {"password": "development"}},
+        sensitive=["db.password"],
+    )
+
+    with (
+        pytest.raises(InvalidSettingError, match="crosses non-section"),
+        settings.override(db="database-url"),
+    ):
+        pytest.fail("the invalid override must fail before entering")
+
+
 @pytest.mark.parametrize(
     "factory",
     [
@@ -294,6 +309,55 @@ def test_context_override_is_task_local_and_inherited_by_child_tasks() -> None:
     assert asyncio.run(scenario()) == ("temporary", "temporary", "base")
 
 
+def test_child_task_retains_inherited_override_after_parent_scope_exits() -> None:
+    settings = Settings({"mode": "base"})
+
+    async def scenario() -> tuple[str, str]:
+        release = asyncio.Event()
+
+        async def read_later() -> str:
+            await release.wait()
+            return settings.mode
+
+        with settings.override(mode="inherited"):
+            child = asyncio.create_task(read_later())
+
+        release.set()
+        return await child, settings.mode
+
+    assert asyncio.run(scenario()) == ("inherited", "base")
+
+
+def test_nested_child_override_is_isolated_from_sibling_and_parent() -> None:
+    settings = Settings({"mode": "base"})
+
+    async def scenario() -> tuple[str, str, str]:
+        child_entered = asyncio.Event()
+        sibling_read = asyncio.Event()
+
+        async def changed_child() -> str:
+            with settings.override(mode="child"):
+                child_entered.set()
+                await sibling_read.wait()
+                return settings.mode
+
+        async def sibling() -> str:
+            await child_entered.wait()
+            value = settings.mode
+            sibling_read.set()
+            return value
+
+        with settings.override(mode="parent"):
+            changed, unchanged = await asyncio.gather(
+                asyncio.create_task(changed_child()),
+                asyncio.create_task(sibling()),
+            )
+            parent = settings.mode
+        return changed, unchanged, parent
+
+    assert asyncio.run(scenario()) == ("child", "parent", "parent")
+
+
 def test_override_can_be_applied_in_an_explicit_copied_context() -> None:
     settings = Settings({"value": "base"})
     context = contextvars.copy_context()
@@ -321,6 +385,17 @@ def test_builtin_mutable_values_are_frozen_without_mutating_inputs() -> None:
     }
 
 
+def test_reference_cycles_are_rejected_but_shared_containers_are_allowed() -> None:
+    shared = ["value"]
+    settings = Settings({"first": shared, "second": shared})
+    assert settings.first == settings.second == ("value",)
+
+    cycle: list[object] = []
+    cycle.append(cycle)
+    with pytest.raises(SettingsSourceError, match=r"reference cycle at 'cycle'"):
+        Settings({"cycle": cycle})
+
+
 def test_invalid_mapping_keys_and_paths_fail_early() -> None:
     with pytest.raises(SettingsSourceError, match="non-string key"):
         Settings({1: "value"})  # type: ignore[dict-item]
@@ -342,6 +417,18 @@ def test_invalid_source_container_types_fail_clearly() -> None:
         Settings.from_sources(
             env_prefix="APP_",
             env={"APP_VALUE": 1},  # type: ignore[dict-item]
+        )
+
+    with pytest.raises(TypeError, match="env_prefix must be a string or None"):
+        Settings.from_sources(env_prefix=1, env={})  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="env must be a mapping"):
+        Settings.from_sources(env_prefix="APP_", env=[])  # type: ignore[arg-type]
+
+    with pytest.raises(SettingsSourceError, match="non-string variable name"):
+        Settings.from_sources(
+            env_prefix="APP_",
+            env={1: "value"},  # type: ignore[dict-item]
         )
 
 
