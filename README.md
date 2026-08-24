@@ -98,7 +98,7 @@ Precedence is always:
 defaults < files in order < environment < runtime overrides
 ```
 
-Environment variables use `__` for nesting and TOML scalar syntax where
+Environment variables use `__` for nesting and complete TOML value syntax where
 possible:
 
 ```console

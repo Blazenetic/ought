@@ -35,27 +35,36 @@ deliberately rather than by accident in a feature patch.
 
 - **Decision:** an exact prefix selects names, `__` separates nesting, and path
   segments are lower-cased.
-- **Decision:** parse a complete value as TOML when valid; otherwise retain the
-  original string.
+- **Decision:** parse a complete single TOML value when valid; otherwise retain
+  the original string. This includes arrays and inline tables, not only scalars.
 - **Decision:** conflicting or duplicate normalised paths are errors.
 - **Reason:** the convention is familiar, deterministic, and avoids a bespoke
   coercion table.
 
 ## Read-only settings snapshots
 
-- **Decision:** Settings is structurally read-only. Built-in mappings and mutable
-  containers are recursively frozen at ingestion.
+- **Decision:** Settings is structurally read-only. Mappings and common built-in
+  containers are recursively frozen at ingestion; reference cycles in those
+  containers are rejected with a source error.
+- **Decision:** arbitrary leaf objects are retained by reference. The library
+  does not guess how to copy or freeze user-defined values.
 - **Decision:** attribute access is dynamic convenience; mapping access and
   typed `require()` are the predictable integration surfaces.
-- **Reason:** context-local snapshots should be safe to share across call stacks
-  and tasks. Full schema typing would violate the lightweight core.
+- **Reason:** settings structure should be safe to share across call stacks and
+  tasks without pretending that Python can make every opaque object deeply
+  immutable. Full schema typing would violate the lightweight core.
 
 ## Sensitive values
 
-- **Decision:** `Secret` is an explicit wrapper with redacted `repr()` and
-  `str()`, plus an explicit `reveal()` operation. Dotted `sensitive=` paths can
-  apply the marker after merging.
-- **Decision:** sensitivity follows later values at the same path.
+- **Decision:** `Secret` is an explicit leaf-value wrapper with redacted
+  `repr()` and `str()`, plus an explicit `reveal()` operation. A later leaf at
+  the same merge location inherits that marker while its sections remain
+  mergeable.
+- **Decision:** dotted `sensitive=` paths are persistent policies reapplied after
+  merging, including for optional and context-overridden values. Intermediate
+  components must remain sections.
+- **Decision:** dotted paths have no escaping grammar. Literal keys containing a
+  dot use mapping access and must be marked with `Secret` directly.
 - **Reason:** logging safety should survive environment and runtime overrides.
   The wrapper is intentionally not a secret store or encryption feature.
 
@@ -71,6 +80,9 @@ deliberately rather than by accident in a feature patch.
 - **Decision:** the first Nursery is a direct typed wrapper around
   `asyncio.TaskGroup`; it preserves normal waiting, cancellation, and
   `ExceptionGroup` semantics.
+- **Decision:** the nursery remains active while `TaskGroup` drains on normal
+  exit, allowing child tasks to start descendants. Callable keyword arguments
+  remain unambiguous; task metadata uses the returned `asyncio.Task`.
 - **Decision:** defer timeout, retry, and bulk-result helpers until their complete
   semantics are designed and tested.
 - **Reason:** the standard library already supplies the hard structured
@@ -83,6 +95,8 @@ deliberately rather than by accident in a feature patch.
   assignment and deletion affect all values for that key.
 - **Decision:** `getall()` returns an immutable tuple and `pairs()` returns a
   stable snapshot iterator.
+- **Decision:** key matching follows dictionary identity-or-equality semantics;
+  mutation validates and prepares both internal indexes before committing.
 - **Decision:** secondary indexes are excluded from the core type.
 - **Reason:** the split is explicit and useful while staying understandable.
   Index maintenance would push the collection towards the proposal's database

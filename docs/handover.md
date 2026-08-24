@@ -1,6 +1,26 @@
-# Foundation handover
+# Foundation merge handover
 
-This is the starting point for the next bounded implementation session.
+## Merge status
+
+Draft PR #1 received a focused senior design review on 24 August 2026. The
+foundation is ready to become the `0.1.0a1` base: no known implementation or API
+design blocker remains. The decisions that follow-on work must preserve are in
+[design-decisions.md](design-decisions.md).
+
+The review deliberately did not implement the proposed timeout, retry, or
+result-collection helpers.
+
+## Review changes
+
+- Settings now rejects cyclic supported containers with a path-aware
+  `SettingsSourceError`, validates environment container/name/prefix shapes,
+  and has explicit contracts for TOML values, opaque mutable leaves, dotted
+  paths, sensitivity policies, and task inheritance/isolation.
+- Nursery now remains live for the full `asyncio.TaskGroup` lifetime, including
+  the period in which child tasks drain and may start descendants.
+- MultiMap mutation is atomic for rejected unhashable keys and follows
+  dictionary identity-or-equality semantics for equal and non-reflexive keys.
+- CI now smoke-tests the built wheel after distribution validation.
 
 ## Current foundation
 
@@ -14,12 +34,20 @@ Version `0.1.0a1` provides:
 - doctests, focused unit and async tests, strict typing and linting, coverage,
   MkDocs documentation, build validation, and a Python 3.11–3.14 CI matrix.
 
-The decisions that must remain stable during follow-on work are recorded in
-[design-decisions.md](design-decisions.md).
+## Verification evidence
 
-## Verification baseline
+The post-review tree passed:
 
-From a uv environment:
+- 52 unit, async, and source-doctest cases on Python 3.11.15, 3.12.13, and
+  3.14.6;
+- 99.23% branch-aware coverage;
+- strict Ruff formatting/linting and strict mypy;
+- strict MkDocs generation;
+- lockfile validation, sdist and wheel builds, and Twine checks; and
+- no-dependency wheel installation and import smoke tests in clean Python 3.11
+  and 3.14 virtual environments, including the `py.typed` marker.
+
+The repeatable uv commands are:
 
 ```console
 uv sync --group dev
@@ -35,6 +63,16 @@ uv run twine check dist/*
 
 The classic-tooling path is `python -m pip install -e ".[dev]"` followed by the
 same tool commands without `uv run`.
+
+## Remaining human decisions
+
+These are release-operation or future-scope decisions, not merge blockers:
+
+- recheck and secure the `oughtlib` PyPI project immediately before publishing;
+- choose PyPI ownership and trusted-publishing configuration;
+- decide whether hosted API documentation is required for the first alpha; and
+- decide later which individual Nursery helper semantics earn inclusion and
+  when alpha compatibility becomes stable.
 
 ## Recommended next phase
 
@@ -53,17 +91,6 @@ Make the concurrency pillar the next primary slice, but keep it bounded:
 MultiMap should receive only targeted hardening in that phase. A single-pair
 removal operation is the most plausible addition, but it needs an explicit rule
 for duplicate equal values before implementation.
-
-## Release-readiness backlog
-
-After the concurrency slice:
-
-- recheck and secure the `oughtlib` PyPI project name;
-- choose trusted publishing ownership and release workflow;
-- test the built wheel in clean Python 3.11 and 3.14 environments;
-- decide whether API docs need hosted MkDocs before the first alpha;
-- add security and support policies if external contributors arrive; and
-- publish release notes that emphasise alpha compatibility.
 
 ## Scope guardrails
 

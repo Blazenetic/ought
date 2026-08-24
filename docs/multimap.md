@@ -35,6 +35,11 @@ Because `MultiMap` implements `MutableMapping`, familiar methods such as
 `get()`, `items()`, `update()`, and `pop()` operate on the first-value mapping
 view. Use `pairs()` whenever multiplicity matters.
 
+Keys follow normal `dict` rules: they must be hashable, and matching uses
+identity or equality. Assignment through an equal key retains the original
+first stored key object. A rejected unhashable key leaves both the mapping view
+and global pair order unchanged.
+
 ## Ordering
 
 `pairs()` preserves global pair insertion order, including interleaved keys.

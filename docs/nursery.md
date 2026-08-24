@@ -27,25 +27,31 @@ async def main() -> list[str]:
 
 `start_soon()` accepts an async callable plus typed positional and keyword
 arguments. It returns the ordinary `asyncio.Task`, so results and task metadata
-use familiar asyncio APIs.
+use familiar asyncio APIs. Keyword arguments belong to the callable; task names
+can be set on the returned task with `set_name()`.
 
 ## Lifetime and failures
 
-The behaviour is exactly the underlying `TaskGroup` behaviour:
+Lifetime and failure behaviour matches the underlying `TaskGroup`:
 
 - normal context exit waits for all child tasks;
+- the scope stays active while those tasks drain, so a child can start a
+  descendant during normal exit;
 - the first non-cancellation child failure cancels its siblings;
 - cleanup is awaited; and
 - failures are raised as an `ExceptionGroup`.
 
-The scope rejects `start_soon()` after it exits and checks this before invoking
-the async callable, avoiding an un-awaited coroutine as a side effect.
+The scope rejects `start_soon()` only after the underlying task group has fully
+exited. It checks inactivity before invoking the async callable, avoiding an
+un-awaited coroutine as a side effect.
 
 ## Context variables
 
 `asyncio.TaskGroup.create_task()` copies the current context when each task is
-created. Ought preserves that behaviour. Two tasks started under different
-`ContextVar` values each retain the value active at their own creation time.
+created. Ought deliberately preserves the context active at `start_soon()`
+rather than adding a second context-selection API. Two tasks started under
+different `ContextVar` values each retain the value active at their own creation
+time.
 
 This composes directly with `Settings.override()`:
 

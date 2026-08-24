@@ -15,3 +15,13 @@ All notable project changes will be documented in this file. The project follows
 - A typed `nursery()` wrapper over `asyncio.TaskGroup`.
 - An insertion-ordered mutable `MultiMap` with first-value mapping semantics.
 - Strict linting, typing, doctest, coverage, documentation, build, and CI checks.
+
+### Changed
+
+- Hardened `MultiMap` mutation against unhashable and non-reflexive keys while
+  preserving dictionary-compatible key identity.
+- Matched the Nursery lifecycle to `asyncio.TaskGroup` while child tasks drain.
+- Rejected cyclic Settings containers with actionable source errors and made
+  environment source-shape validation explicit.
+- Clarified structural immutability, TOML environment values, dotted sensitive
+  paths, and task-local override inheritance.

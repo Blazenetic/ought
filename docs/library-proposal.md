@@ -110,7 +110,7 @@ from ought import nursery
 async with nursery() as n:
     n.start_soon(fetch_a)
     n.start_soon(fetch_b)
-    # automatic cancellation on error or exit
+    # normal exit waits; a child failure cancels its siblings
 ```
 
 ### 3. Ordered multi-maps (`ought.multimap`)
