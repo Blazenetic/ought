@@ -1,0 +1,133 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oughtlib"
+dynamic = ["version"]
+description = "Focused practical batteries for modern Python"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Blazenetic" }]
+keywords = ["asyncio", "configuration", "multimap", "settings", "utilities"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Blazenetic/ought"
+Documentation = "https://github.com/Blazenetic/ought/tree/main/docs"
+Issues = "https://github.com/Blazenetic/ought/issues"
+Repository = "https://github.com/Blazenetic/ought"
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.3",
+  "pytest-cov>=5",
+]
+typing = ["mypy>=1.15"]
+docs = ["mkdocs>=1.6"]
+dev = [
+  "build>=1.2",
+  "mkdocs>=1.6",
+  "mypy>=1.15",
+  "pytest>=8.3",
+  "pytest-cov>=5",
+  "ruff>=0.11",
+  "twine>=6",
+]
+
+[dependency-groups]
+test = [
+  "pytest>=8.3",
+  "pytest-cov>=5",
+]
+typing = ["mypy>=1.15"]
+docs = ["mkdocs>=1.6"]
+dev = [
+  { include-group = "test" },
+  { include-group = "typing" },
+  { include-group = "docs" },
+  "build>=1.2",
+  "ruff>=0.11",
+  "twine>=6",
+]
+
+[tool.hatch.version]
+path = "src/ought/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/docs",
+  "/src",
+  "/tests",
+  "CHANGELOG.md",
+  "CONTRIBUTING.md",
+  "LICENSE",
+  "README.md",
+  "mkdocs.yml",
+  "pyproject.toml",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ought"]
+
+[tool.pytest.ini_options]
+addopts = [
+  "--strict-config",
+  "--strict-markers",
+  "--doctest-modules",
+  "--cov=ought",
+  "--cov-branch",
+  "--cov-report=term-missing",
+  "--cov-fail-under=95",
+]
+testpaths = ["tests", "src/ought"]
+
+[tool.coverage.run]
+source = ["ought"]
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise AssertionError",
+  "raise NotImplementedError",
+]
+show_missing = true
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+strict = true
+pretty = true
+show_error_codes = true
+warn_unreachable = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["B", "C4", "D", "E", "F", "I", "RUF", "SIM", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.format]
+docstring-code-format = true
