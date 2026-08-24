@@ -1,0 +1,25 @@
+site_name: Ought
+site_description: Focused practical batteries for modern Python
+repo_url: https://github.com/Blazenetic/ought
+repo_name: Blazenetic/ought
+edit_uri: edit/main/docs/
+strict: true
+
+theme:
+  name: readthedocs
+
+nav:
+  - Home: index.md
+  - Settings: settings.md
+  - Nursery: nursery.md
+  - MultiMap: multimap.md
+  - Design decisions: design-decisions.md
+  - Library proposal: library-proposal.md
+  - Foundation handover: handover.md
+
+markdown_extensions:
+  - admonition
+  - fenced_code
+  - tables
+  - toc:
+      permalink: true

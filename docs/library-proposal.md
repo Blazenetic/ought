@@ -3,10 +3,17 @@
 **One-sentence summary**  
 Ought is a small, pure-Python library that provides three tightly-scoped, high-quality utilities that most real programs need and that currently force developers to assemble from multiple overlapping packages: hierarchical configuration, lightweight structured concurrency helpers, and efficient ordered multi-maps.
 
-**Status**  
-Design proposal — ready for implementation planning.  
-Date: 2026-08-17  
+**Status**
+
+Accepted design proposal — initial `0.1.0a1` foundation implemented.
+Date: 2026-08-17
 Author: Blazenetic (with Grok)
+
+**Implementation note (2026-08-24)**
+
+The distribution name is `oughtlib`; the import package and project remain
+`ought` / Ought. Foundation decisions that resolve this proposal's open
+questions are recorded in [design-decisions.md](design-decisions.md).
 
 ---
 
@@ -121,7 +128,7 @@ from ought import MultiMap
 mm = MultiMap()
 mm.add("user", 42)
 mm.add("user", 99)
-list(mm.getall("user"))   # [42, 99]
+list(mm.getall("user"))  # [42, 99]
 ```
 
 ---
@@ -134,7 +141,9 @@ list(mm.getall("user"))   # [42, 99]
 - Directly signals the intent: “these are the pieces that *ought* to exist in (or next to) the standard library.”
 - Avoids the “yet another utils/helpers/kit” problem.
 - Easy to type and to say.
-- Package name on PyPI: `ought` (or `oughtlib` if `ought` is taken; check at implementation time).
+- Distribution name: `oughtlib` (`ought` was already occupied on PyPI when the
+  foundation was implemented).
+- Import package: `ought`, preserving the proposed API and project identity.
 
 Alternative candidates considered and rejected for now:
 - `solid` — good but less specific.
@@ -165,14 +174,18 @@ Alternative candidates considered and rejected for now:
 
 ## Suggested next steps
 
-1. Confirm name availability on PyPI (`ought` / `oughtlib`).
-2. Create a minimal repository with:
+1. Confirm name availability on PyPI (`ought` / `oughtlib`). **Completed for the
+   foundation: `oughtlib` selected; recheck before publication.**
+2. Create a minimal repository with: **Completed.**
    - Clear README that states goals and non-goals up front.
    - Package layout for the three pillars.
    - Initial `Settings` implementation (highest everyday value).
    - Basic test suite and documentation skeleton.
 3. Implement the concurrency helpers next (they benefit most from modern asyncio).
-4. Add `MultiMap` once the first two pillars feel solid.
+   **A thin TaskGroup nursery now exists; timeout, retry and collection helpers
+   remain the recommended next slice.**
+4. Add `MultiMap` once the first two pillars feel solid. **A thin ordered
+   MultiMap now exists without secondary indexes.**
 5. Publish a 0.1 with explicit “API may still move” marking.
 6. Keep the project ruthlessly small.
 
@@ -180,9 +193,12 @@ Alternative candidates considered and rejected for now:
 
 ## Open questions
 
-- Exact precedence rules and file format support for Settings (TOML first? JSON? both?).
+- Exact precedence rules and file format support for Settings. **Resolved for
+  the foundation: defaults → TOML files → environment → overrides.**
 - How aggressive to be with contextvars integration in the concurrency helpers.
-- Whether `MultiMap` should support secondary indexes in the core type or as a separate thin wrapper.
+  **Resolved conservatively: preserve asyncio's native task context copying.**
+- Whether `MultiMap` should support secondary indexes in the core type or as a
+  separate thin wrapper. **Resolved: no secondary indexes in the core.**
 - Long-term home (standalone open-source project under Blazenetic / Complex State, or personal).
 - Versioning and compatibility policy once 0.1 ships.
 
