@@ -1,0 +1,19 @@
+# Bytecode and tool caches
+__pycache__/
+*.py[cod]
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Environments and local tooling
+.env
+.venv/
+.idea/
+.vscode/
+
+# Build output
+build/
+dist/
+*.egg-info/
+site/
